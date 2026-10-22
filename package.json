@@ -13,7 +13,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -r src/web dist/web",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -r src/web dist/web && node scripts/vendor-highlight.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "prepare": "npm run build"
@@ -22,6 +22,7 @@
   "devDependencies": {
     "@types/node": "^24.19.2",
     "happy-dom": "^21.0.4",
+    "highlight.js": "11.12.0",
     "typescript": "~5.9.0",
     "vitest": "^5.0.5"
   }
