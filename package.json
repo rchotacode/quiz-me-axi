@@ -1,0 +1,28 @@
+{
+  "name": "quiz-me",
+  "version": "0.1.0",
+  "description": "Ask the user a batch of yes/no Questions in the browser and collect their Answers, without blocking the agent.",
+  "type": "module",
+  "bin": {
+    "quiz-me": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -r src/web dist/web",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepare": "npm run build"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "happy-dom": "^21.0.4",
+    "typescript": "~5.9.0",
+    "vitest": "^5.0.5"
+  }
+}
