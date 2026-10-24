@@ -74,7 +74,7 @@ describe("Quiz page", () => {
     const html = await pageHtml(id);
     expect(html).toContain("<code>npm ci</code>");
     expect(html).toContain("<li>step one</li>");
-    expect(html).toContain('<pre><code class="language-sh">npm run migrate</code></pre>');
+    expect(html).toContain('<pre><code class="hljs language-sh">npm run migrate</code></pre>');
   });
 
   it("escapes HTML and script in the Quiz title, Question title and body", async () => {
@@ -144,5 +144,79 @@ describe("Quiz page", () => {
     const css = await (await fetch(`http://127.0.0.1:${sb.port}/assets/style.css`)).text();
     expect(css).toContain("prefers-color-scheme: dark");
     expect(await pageHtml(id)).toContain('<meta name="color-scheme" content="light dark">');
+  });
+
+  it("syntax-highlights fenced code server-side, with no extra script and a strict CSP", async () => {
+    const id = await ask({ questions: [{ title: "OK?", body: "```ts\nconst x = 1;\n```\n\n```\n<script>alert(1)</script>\n```" }] });
+    const res = await fetch(`http://127.0.0.1:${sb.port}/q/${id}`);
+    const html = await res.text();
+    expect(html).toContain('<code class="hljs language-ts"><span class="hljs-keyword">const</span> x = <span class="hljs-number">1</span>;</code>');
+    expect(html).toContain("<pre><code>&lt;script&gt;alert(1)&lt;/script&gt;</code></pre>");
+    expect(html.match(/<script/g)).toHaveLength(1); // only the page's own app.js
+    expect(html).not.toMatch(/\sstyle=/);
+    expect(res.headers.get("content-security-policy")).toBe(
+      "default-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'",
+    );
+  });
+});
+
+/** The declarations of every rule whose selector list includes `selector` (outside or inside at-rules). */
+function rule(css: string, selector: string): string {
+  const found: string[] = [];
+  for (const m of css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (m[1]!.split(",").some((s) => s.trim() === selector)) found.push(m[2]!);
+  }
+  expect(found.length, `no rule for ${selector}`).toBeGreaterThan(0);
+  return found.join(";");
+}
+
+function darkBlock(css: string): string {
+  const start = css.indexOf("@media (prefers-color-scheme: dark)");
+  expect(start).toBeGreaterThan(-1);
+  let depth = 0;
+  for (let i = css.indexOf("{", start); i < css.length; i++) {
+    if (css[i] === "{") depth++;
+    if (css[i] === "}" && --depth === 0) return css.slice(start, i + 1);
+  }
+  throw new Error("unterminated dark block");
+}
+
+describe("Quiz page stylesheet", () => {
+  const css = readFileSync(resolve(import.meta.dirname, "../src/web/style.css"), "utf8");
+
+  it("sizes the page column to the window, with a side gutter and a reading max-width", () => {
+    const main = rule(css, "main");
+    expect(main).toMatch(/max-width:\s*var\(--page-max\)/);
+    expect(main).toMatch(/padding:[^;]*var\(--gutter\)/);
+    expect(rule(css, ":root")).toMatch(/--page-max:\s*\d+(\.\d+)?rem/);
+    expect(rule(css, ":root")).toMatch(/--gutter:\s*clamp\(/);
+    // Nothing on the page pins a pixel width that could force horizontal scrolling on a phone.
+    expect(css).not.toMatch(/(^|[^-])width:\s*\d{3,}px/m);
+  });
+
+  it("keeps cards within the column so wide content can't stretch them", () => {
+    expect(rule(css, ".card")).toMatch(/min-width:\s*0/);
+    expect(rule(css, ".body")).toMatch(/min-width:\s*0/);
+  });
+
+  it("scrolls code blocks horizontally inside the card instead of wrapping or stretching it", () => {
+    const pre = rule(css, ".body pre");
+    expect(pre).toMatch(/overflow-x:\s*auto/);
+    expect(pre).toMatch(/max-width:\s*100%/);
+    expect(rule(css, "pre code")).toMatch(/white-space:\s*pre(;|$|\s)/);
+  });
+
+  it("lines the sticky footer up with the page column", () => {
+    expect(rule(css, ".bar")).toMatch(/var\(--page-max\)/);
+  });
+
+  it("colours highlighted code in both light and dark themes", () => {
+    for (const token of [".hljs-keyword", ".hljs-string", ".hljs-comment", ".hljs-number", ".hljs-title", ".hljs-addition", ".hljs-deletion"]) {
+      expect(rule(css, token)).toMatch(/color:\s*var\(--hl-/);
+    }
+    const lightVars = [...rule(css, ":root").matchAll(/(--hl-[\w-]+):/g)].map((m) => m[1]);
+    expect(lightVars.length).toBeGreaterThan(4);
+    const dark = darkBlock(css);
+    for (const v of lightVars) expect(dark).toContain(`${v}:`);
   });
 });

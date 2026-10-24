@@ -4,7 +4,9 @@
  * Everything is HTML-escaped first; only the constructs below produce markup:
  * fenced code blocks, headings, lists, blockquotes, rules, paragraphs, and inline
  * code, bold, italic and http(s)/mailto links. Raw HTML is never passed through.
+ * Fenced code blocks whose language is known are syntax-highlighted (see highlight.ts).
  */
+import { highlight } from "./highlight.ts";
 import { escapeHtml } from "./html.ts";
 
 const SAFE_URL = /^(https?:\/\/|mailto:)/i;
@@ -35,7 +37,23 @@ function emphasis(raw: string): string {
   return s;
 }
 
-const FENCE = /^ {0,3}(`{3,}|~{3,})\s*([\w+-]*)\s*$/;
+const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+/** A language tag we'll put in a class attribute; anything else in the info string is ignored. */
+const LANGUAGE = /^[\w+#.-]+$/;
+
+function openingFence(line: string): RegExpExecArray | undefined {
+  const m = FENCE.exec(line);
+  // A backtick fence's info string can't contain backticks (CommonMark), so ```a``` stays inline code.
+  return m && !(m[1]!.startsWith("`") && m[2]!.includes("`")) ? m : undefined;
+}
+
+function codeBlock(code: string, info: string): string {
+  const lang = info.trim().split(/\s+/)[0]!;
+  if (!LANGUAGE.test(lang)) return `<pre><code>${escapeHtml(code)}</code></pre>`;
+  const highlighted = highlight(code, lang);
+  if (highlighted === undefined) return `<pre><code class="language-${lang}">${escapeHtml(code)}</code></pre>`;
+  return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>`;
+}
 const HEADING = /^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$/;
 const UL_ITEM = /^ {0,3}[-*+]\s+(.*)$/;
 const OL_ITEM = /^ {0,3}\d{1,9}[.)]\s+(.*)$/;
@@ -52,15 +70,14 @@ export function renderMarkdown(src: string): string {
       i++;
       continue;
     }
-    const fence = FENCE.exec(line);
+    const fence = openingFence(line);
     if (fence) {
       const close = fence[1]!;
       const body: string[] = [];
       i++;
       while (i < lines.length && !lines[i]!.trim().startsWith(close)) body.push(lines[i++]!);
       i++; // closing fence (or end of input)
-      const cls = fence[2] ? ` class="language-${escapeHtml(fence[2])}"` : "";
-      out.push(`<pre><code${cls}>${escapeHtml(body.join("\n"))}</code></pre>`);
+      out.push(codeBlock(body.join("\n"), fence[2]!));
       continue;
     }
     if (RULE.test(line)) {
@@ -100,7 +117,7 @@ export function renderMarkdown(src: string): string {
     while (
       i < lines.length &&
       lines[i]!.trim() !== "" &&
-      !FENCE.test(lines[i]!) &&
+      !openingFence(lines[i]!) &&
       !HEADING.test(lines[i]!) &&
       !QUOTE.test(lines[i]!) &&
       !UL_ITEM.test(lines[i]!) &&

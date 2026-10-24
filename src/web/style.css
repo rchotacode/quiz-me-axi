@@ -10,6 +10,24 @@
   --no: #c2412d;
   --code-bg: #eef0f3;
   --shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 2px 8px rgb(0 0 0 / 4%);
+
+  /* Layout: the column fills narrow screens (minus the gutter) and stops at a comfortable reading width. */
+  --page-max: 50rem;
+  --gutter: clamp(12px, 4vw, 32px);
+  --card-pad: clamp(14px, 3.5vw, 24px);
+
+  /* Syntax highlighting (GitHub-like), tuned for contrast on --code-bg. */
+  --hl-keyword: #cf222e;
+  --hl-string: #0a3069;
+  --hl-comment: #57606a;
+  --hl-number: #0550ae;
+  --hl-title: #8250df;
+  --hl-type: #953800;
+  --hl-tag: #116329;
+  --hl-add-fg: #116329;
+  --hl-add-bg: #dafbe1;
+  --hl-del-fg: #82071e;
+  --hl-del-bg: #ffebe9;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -24,10 +42,24 @@
     --no: #f07a63;
     --code-bg: #262a31;
     --shadow: none;
+
+    --hl-keyword: #ff7b72;
+    --hl-string: #a5d6ff;
+    --hl-comment: #8b949e;
+    --hl-number: #79c0ff;
+    --hl-title: #d2a8ff;
+    --hl-type: #ffa657;
+    --hl-tag: #7ee787;
+    --hl-add-fg: #aff5b4;
+    --hl-add-bg: #033a16;
+    --hl-del-fg: #ffdcd7;
+    --hl-del-bg: #67060c;
   }
 }
 
 * { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 body {
   margin: 0;
@@ -37,9 +69,9 @@ body {
 }
 
 main {
-  max-width: 760px;
+  max-width: var(--page-max);
   margin: 0 auto;
-  padding: 32px 16px 120px;
+  padding: 32px var(--gutter) 120px;
 }
 
 .page-head h1 { margin: 0 0 4px; font-size: 1.6rem; line-height: 1.25; }
@@ -59,8 +91,9 @@ main {
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: var(--shadow);
-  padding: 20px;
+  padding: var(--card-pad);
   margin-bottom: 16px;
+  min-width: 0;
 }
 .card.answered { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
 
@@ -80,7 +113,7 @@ main {
   font-variant-numeric: tabular-nums;
 }
 
-.body { color: var(--text); overflow-wrap: anywhere; }
+.body { color: var(--text); overflow-wrap: anywhere; min-width: 0; }
 .body :first-child { margin-top: 0; }
 .body h3, .body h4, .body h5, .body h6 { font-size: 1rem; margin: 16px 0 6px; }
 .body blockquote { margin: 8px 0; padding-left: 12px; border-left: 3px solid var(--border); color: var(--muted); }
@@ -94,11 +127,40 @@ pre {
   background: var(--code-bg);
   padding: 12px 14px;
   border-radius: 8px;
-  overflow-x: auto;
 }
-pre code { background: none; padding: 0; }
+/* Long code lines scroll inside the card rather than wrapping or widening it. */
+.body pre {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-wrap: normal;
+  margin: 12px 0;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 60%, transparent) transparent;
+}
+pre code {
+  background: none;
+  padding: 0;
+  white-space: pre;
+  overflow-wrap: normal;
+  tab-size: 4;
+  font-size: inherit;
+}
 
-.choices { display: flex; gap: 10px; margin: 16px 0 12px; }
+/* highlight.js token classes (markup is generated server-side). */
+.hljs-keyword, .hljs-doctag, .hljs-template-tag, .hljs-template-variable, .hljs-variable.language_, .hljs-meta .hljs-keyword { color: var(--hl-keyword); }
+.hljs-string, .hljs-regexp, .hljs-meta .hljs-string { color: var(--hl-string); }
+.hljs-comment, .hljs-quote, .hljs-code { color: var(--hl-comment); font-style: italic; }
+.hljs-number, .hljs-literal, .hljs-attr, .hljs-attribute, .hljs-property, .hljs-operator, .hljs-symbol, .hljs-variable, .hljs-meta, .hljs-selector-attr, .hljs-selector-class, .hljs-selector-id { color: var(--hl-number); }
+.hljs-title, .hljs-title.class_, .hljs-title.function_, .hljs-section { color: var(--hl-title); }
+.hljs-type, .hljs-built_in, .hljs-selector-pseudo { color: var(--hl-type); }
+.hljs-params, .hljs-subst { color: inherit; }
+.hljs-name, .hljs-tag, .hljs-selector-tag, .hljs-bullet { color: var(--hl-tag); }
+.hljs-addition { color: var(--hl-add-fg); background: var(--hl-add-bg); }
+.hljs-deletion { color: var(--hl-del-fg); background: var(--hl-del-bg); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 600; }
+
+.choices { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 12px; }
 .choice {
   flex: 1;
   max-width: 160px;
@@ -150,7 +212,9 @@ textarea {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 12px max(16px, calc((100% - 728px) / 2));
+  flex-wrap: wrap;
+  /* Line the footer's contents up with the page column's content. */
+  padding: 12px max(var(--gutter), calc((100% - var(--page-max)) / 2 + var(--gutter)));
   background: color-mix(in srgb, var(--card) 92%, transparent);
   backdrop-filter: blur(6px);
   border-top: 1px solid var(--border);
